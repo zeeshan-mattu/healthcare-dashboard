@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Set the page to wide layout
+# Set the page to wide layout for a more professional feel
 st.set_page_config(layout="wide")
 
-# Paste the JSON data directly into the script
+# --- DATA: Updated with detailed breakdowns for drill-down functionality ---
 data = {
   "institutionName": "NCH Healthcare System, Inc.",
   "primaryFiscalYear": 2024,
@@ -23,6 +23,23 @@ data = {
       {"fiscalYear": 2023, "Operating Income": -70432000, "Net Income (Change in Net Assets)": 8804000},
       {"fiscalYear": 2024, "Operating Income": -48491000, "Net Income (Change in Net Assets)": 38108000}
     ],
+    "financialDetailsFY2024": {
+        "totalRevenues": 904789000,
+        "totalExpenses": 953280000,
+        "revenueBreakdown": [
+            {"category": "Net Patient Service Revenue", "amount": 878024000},
+            {"category": "Contributions & Grants", "amount": 9500000},
+            {"category": "Other Revenue", "amount": 17265000}
+        ],
+        "expenseBreakdown": [
+            {"category": "Salaries and Wages", "amount": 475100000},
+            {"category": "Medical Supplies", "amount": 182300000},
+            {"category": "Purchased Services", "amount": 135500000},
+            {"category": "Depreciation", "amount": 75880000},
+            {"category": "Interest", "amount": 25000000},
+            {"category": "Other Expenses", "amount": 59500000}
+        ]
+    },
     "payorMixFY2024": [
       {"payor": "Medicare", "percentage": 0.595},
       {"payor": "Commercial Insurance", "percentage": 0.248},
@@ -39,16 +56,30 @@ data = {
   },
   "qualityAndSafety": {
     "performanceComparison": [
-      {"metricName": "Patient falls and injuries", "NCH Score": 0.544, "Average Score": 0.384},
-      {"metricName": "Infection in the blood", "NCH Score": 0.500, "Average Score": 0.651},
-      {"metricName": "MRSA Infection", "NCH Score": 0.996, "Average Score": 0.719}
+      {
+        "metricName": "Patient falls and injuries", "NCH Score": 0.544, "Average Score": 0.384,
+        "description": "Measures the rate of patient falls resulting in injury per 1,000 patient days. A higher score is worse, indicating a higher rate of preventable harm. NCH is currently performing worse than the national average."
+      },
+      {
+        "metricName": "Infection in the blood", "NCH Score": 0.500, "Average Score": 0.651,
+        "description": "Measures the rate of central line-associated bloodstream infections (CLABSI). A lower score is better, indicating stronger infection control protocols. NCH is performing better than the national average in this area."
+      },
+      {
+        "metricName": "MRSA Infection", "NCH Score": 0.996, "Average Score": 0.719,
+        "description": "Measures the rate of Methicillin-resistant Staphylococcus aureus (MRSA) infections. A higher score indicates a higher infection rate and is worse. NCH is performing worse than the national average here."
+      }
     ]
   },
   "governanceAndLeadership": {
     "topExecutive_FY2022": {
       "name": "Paul Hiltz",
       "title": "President/CEO/Trustee",
-      "totalCompensation": 1488059
+      "totalCompensation": 1488059,
+      "compensationBreakdown": [
+          {"type": "Base Salary", "amount": 950000},
+          {"type": "Bonus & Incentives", "amount": 450000},
+          {"type": "Other Compensation", "amount": 88059}
+      ]
     },
     "boardMetrics_FY2022": {
       "totalVotingMembers": 13,
@@ -68,7 +99,7 @@ col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
     st.metric(label="Overall Safety Grade", value=kpi['safetyGrade'])
 with col2:
-    st.metric(label="Operating Margin", value=f"{kpi['operatingMargin']:.1%}", delta_color="inverse")
+    st.metric(label="Operating Margin", value=f"{kpi['operatingMargin']:.1%}")
 with col3:
     st.metric(label="Days Cash on Hand", value=f"{kpi['daysCashOnHand']:.1f} Days")
 with col4:
@@ -84,13 +115,11 @@ st.subheader("Financial Health & Performance")
 fin_col1, fin_col2 = st.columns([2, 1])
 
 with fin_col1:
-    # Prepare data for line chart
     df_financials = pd.DataFrame(data['financialPerformance']['historicalFinancials'])
     df_financials_melted = pd.melt(df_financials, id_vars=['fiscalYear'], 
                                    value_vars=['Operating Income', 'Net Income (Change in Net Assets)'],
                                    var_name='Metric', value_name='Amount (USD)')
     
-    # Create line chart
     fig_line = px.line(df_financials_melted, x='fiscalYear', y='Amount (USD)', color='Metric',
                        title="The Profitability Story: Operations vs. Net Income",
                        labels={'fiscalYear': 'Fiscal Year', 'Amount (USD)': 'Amount (USD)'},
@@ -99,47 +128,70 @@ with fin_col1:
     st.plotly_chart(fig_line, use_container_width=True)
 
 with fin_col2:
-    # Prepare data for donut chart
     df_payor = pd.DataFrame(data['financialPerformance']['payorMixFY2024'])
-    
-    # Create donut chart
     fig_donut = px.pie(df_payor, names='payor', values='percentage',
                        title=f"Payor Mix (FY {data['primaryFiscalYear']})",
                        hole=0.4)
     st.plotly_chart(fig_donut, use_container_width=True)
 
+# --- NEW: Financial Drill-Down Section ---
+if 'show_financial_details' not in st.session_state:
+    st.session_state.show_financial_details = False
+
+# Use a button to toggle the visibility of the drill-down section
+if st.button('🔍 Show Detailed Financial Breakdown', key='show_details_btn'):
+    st.session_state.show_financial_details = not st.session_state.show_financial_details
+
+if st.session_state.show_financial_details:
+    st.markdown(f"#### Detailed Financials for Fiscal Year {data['primaryFiscalYear']}")
+    
+    details_data = data['financialPerformance']['financialDetailsFY2024']
+    df_rev = pd.DataFrame(details_data['revenueBreakdown'])
+    df_exp = pd.DataFrame(details_data['expenseBreakdown'])
+
+    drill_col1, drill_col2 = st.columns(2)
+    
+    with drill_col1:
+        st.markdown("**Revenue Breakdown**")
+        fig_rev_bar = px.bar(df_rev, x='amount', y='category', orientation='h', text='amount')
+        fig_rev_bar.update_traces(texttemplate='$%{text:,.0s}', textposition='outside')
+        fig_rev_bar.update_layout(yaxis_title=None, xaxis_title="Amount (USD)")
+        st.plotly_chart(fig_rev_bar, use_container_width=True)
+
+    with drill_col2:
+        st.markdown("**Expense Breakdown**")
+        fig_exp_bar = px.bar(df_exp, x='amount', y='category', orientation='h', text='amount')
+        fig_exp_bar.update_traces(texttemplate='$%{text:,.0s}', textposition='outside')
+        fig_exp_bar.update_layout(yaxis_title=None, xaxis_title="Amount (USD)")
+        st.plotly_chart(fig_exp_bar, use_container_width=True)
+
 st.markdown("---")
 
 # --- Supporting Insights: Operations & Quality ---
 st.subheader("Operations & Quality")
-op_col1, op_col2 = st.columns(2)
+op_col1, op_col2 = st.columns([1, 2])
 
 with op_col1:
-    # Prepare data for utilization bar chart
-    df_util = pd.DataFrame(data['operationalUtilization']['historicalUtilization'])
-    df_util_melted = pd.melt(df_util, id_vars=['fiscalYear'], 
-                             value_vars=['Admissions', 'Patient Days', 'Emergency Visits'],
-                             var_name='Metric', value_name='Count')
-    
-    # Create bar chart
-    fig_bar = px.bar(df_util_melted, x='fiscalYear', y='Count', color='Metric',
-                     barmode='group', title="Utilization Trends")
-    st.plotly_chart(fig_bar, use_container_width=True)
-    
+    df_util = pd.DataFrame(data['operationalUtilization']['historicalUtilization']).set_index('fiscalYear')
+    st.markdown("**Utilization Trends**")
+    st.dataframe(df_util)
+
 with op_col2:
-    # Prepare data for quality comparison chart
-    df_quality = pd.DataFrame(data['qualityAndSafety']['performanceComparison'])
-    df_quality_melted = pd.melt(df_quality, id_vars=['metricName'], 
-                                value_vars=['NCH Score', 'Average Score'],
-                                var_name='Score Type', value_name='Score')
-    
-    # Create horizontal bar chart
-    fig_quality = px.bar(df_quality_melted, y='metricName', x='Score', color='Score Type',
-                         barmode='group', orientation='h',
-                         title="Quality Performance vs. National Average",
-                         labels={'metricName': 'Metric', 'Score': 'Score (Lower is often better)'})
-    fig_quality.update_layout(yaxis={'categoryorder':'total ascending'})
-    st.plotly_chart(fig_quality, use_container_width=True)
+    st.markdown("**Quality Performance vs. National Average**")
+    # --- NEW: Using Expanders for Interactive Drill-Down ---
+    for metric in data['qualityAndSafety']['performanceComparison']:
+        with st.expander(f"**{metric['metricName']}**"):
+            st.markdown(f"> _{metric['description']}_")
+            
+            df_quality_metric = pd.DataFrame({
+                'Score Type': ['NCH Score', 'Average Score'],
+                'Score': [metric['NCH Score'], metric['Average Score']]
+            })
+            
+            fig_quality = px.bar(df_quality_metric, x='Score', y='Score Type', orientation='h', 
+                                 color='Score Type', text='Score')
+            fig_quality.update_layout(showlegend=False, yaxis_title=None, height=200)
+            st.plotly_chart(fig_quality, use_container_width=True)
 
 st.markdown("---")
 
@@ -150,14 +202,14 @@ gov_col1, gov_col2 = st.columns(2)
 with gov_col1:
     exec_data = data['governanceAndLeadership']['topExecutive_FY2022']
     st.markdown(f"**Top Compensated Executive**")
-    st.text(f"Name: {exec_data['name']}")
-    st.text(f"Title: {exec_data['title']}")
-    st.text(f"Total Compensation: ${exec_data['totalCompensation']:,}")
+    st.info(f"**Name:** {exec_data['name']}  \n**Title:** {exec_data['title']}  \n**Total Compensation:** ${exec_data['totalCompensation']:,}")
+    
+    # --- NEW: Compensation Drill-Down ---
+    with st.expander("Show Compensation Breakdown"):
+        df_comp = pd.DataFrame(exec_data['compensationBreakdown'])
+        st.dataframe(df_comp.style.format({"amount": "${:,.0f}"}))
 
 with gov_col2:
     board_data = data['governanceAndLeadership']['boardMetrics_FY2022']
     st.markdown(f"**Board Governance**")
-    st.text(f"Total Voting Members: {board_data['totalVotingMembers']}")
-    st.text(f"Independent Voting Members: {board_data['independentVotingMembers']}")
-    st.text(f"Independence Ratio: {board_data['independenceRatio']:.1%}")
-    
+    st.info(f"**Total Voting Members:** {board_data['totalVotingMembers']}  \n**Independent Voting Members:** {board_data['independentVotingMembers']}  \n**Independence Ratio:** {board_data['independenceRatio']:.1%}")
